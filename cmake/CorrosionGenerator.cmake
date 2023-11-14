@@ -112,6 +112,7 @@ function(_generator_add_package_targets)
 
             _corrosion_add_library_target(
                 WORKSPACE_MANIFEST_PATH "${workspace_manifest_path}"
+                MANIFEST_PATH "${manifest_path}"
                 TARGET_NAME "${target_name}"
                 LIB_KINDS ${kinds}
                 OUT_ARCHIVE_OUTPUT_BYPRODUCTS archive_byproducts

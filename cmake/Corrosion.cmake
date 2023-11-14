@@ -390,6 +390,7 @@ function(_corrosion_add_library_target)
     set(OPTIONS "")
     set(ONE_VALUE_KEYWORDS
         WORKSPACE_MANIFEST_PATH
+        MANIFEST_PATH
         TARGET_NAME
         OUT_ARCHIVE_OUTPUT_BYPRODUCTS
         OUT_SHARED_LIB_BYPRODUCTS
@@ -423,6 +424,7 @@ function(_corrosion_add_library_target)
         message(FATAL_ERROR "Unknown library type(s): ${CALT_LIB_KINDS}")
     endif()
     set(workspace_manifest_path "${CALT_WORKSPACE_MANIFEST_PATH}")
+    set(manifest_path "${CALT_MANIFEST_PATH}")
     set(target_name "${CALT_TARGET_NAME}")
 
     set(is_windows "")
@@ -494,11 +496,19 @@ function(_corrosion_add_library_target)
                 "ARCHIVE_OUTPUT_DIRECTORY"
                 "${static_lib_name}")
 
+        cmake_path(GET manifest_path PARENT_PATH crate_dir)
+        message(DEBUG "Determining required link libraries for static library crate ${target_name}")
+        unset(required_native_libs)
+        _corrosion_determine_libs_for_crate("${Rust_CARGO_TARGET_CACHED}" required_native_libs "${crate_dir}")
+        if(DEFINED required_native_libs)
+            message(STATUS "Required static libs for crate ${target_name}: ${required_native_libs}" )
+        endif()
+
         # Todo: NO_STD target property?
         if(NOT COR_NO_STD)
             set_property(
                     TARGET ${target_name}-static
-                    PROPERTY INTERFACE_LINK_LIBRARIES ${Rust_CARGO_TARGET_LINK_NATIVE_LIBS}
+                    PROPERTY INTERFACE_LINK_LIBRARIES ${required_native_libs}
             )
             if(is_macos)
                 set_property(TARGET ${target_name}-static

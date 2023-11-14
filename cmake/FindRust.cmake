@@ -133,22 +133,12 @@ function(_corrosion_parse_target_triple target_triple out_arch out_vendor out_os
     set("${out_env}" "${CMAKE_MATCH_6}" PARENT_SCOPE)
 endfunction()
 
-function(_corrosion_determine_libs_new target_triple out_libs)
-    set(package_dir "${CMAKE_BINARY_DIR}/corrosion/required_libs")
-    # Cleanup on reconfigure to get a cleans state (in case we change something in the future)
-    file(REMOVE_RECURSE "${package_dir}")
-    file(MAKE_DIRECTORY "${package_dir}")
-    set(manifest "[package]\nname = \"required_libs\"\nedition = \"2018\"\nversion = \"0.1.0\"\n")
-    string(APPEND manifest "\n[lib]\ncrate-type=[\"staticlib\"]\npath = \"lib.rs\"\n")
-    string(APPEND manifest "\n[workspace]\n")
-    file(WRITE "${package_dir}/Cargo.toml" "${manifest}")
-    file(WRITE "${package_dir}/lib.rs" "pub fn add(left: usize, right: usize) -> usize {left + right}\n")
-
+function(_corrosion_determine_libs_for_crate target_triple out_libs crate)
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E env
             "CARGO_BUILD_RUSTC=${Rust_COMPILER_CACHED}"
         ${Rust_CARGO_CACHED} rustc --verbose --color never --target=${target_triple} -- --print=native-static-libs
-        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/corrosion/required_libs"
+        WORKING_DIRECTORY "${crate}"
         RESULT_VARIABLE cargo_build_result
         ERROR_VARIABLE cargo_build_error_message
     )
@@ -178,6 +168,21 @@ function(_corrosion_determine_libs_new target_triple out_libs)
         endif()
     endif()
     set("${out_libs}" "${libs_list}" PARENT_SCOPE)
+endfunction()
+
+function(_corrosion_determine_libs_new target_triple out_libs)
+    set(package_dir "${CMAKE_BINARY_DIR}/corrosion/required_libs")
+    # Cleanup on reconfigure to get a cleans state (in case we change something in the future)
+    file(REMOVE_RECURSE "${package_dir}")
+    file(MAKE_DIRECTORY "${package_dir}")
+    set(manifest "[package]\nname = \"required_libs\"\nedition = \"2018\"\nversion = \"0.1.0\"\n")
+    string(APPEND manifest "\n[lib]\ncrate-type=[\"staticlib\"]\npath = \"lib.rs\"\n")
+    string(APPEND manifest "\n[workspace]\n")
+    file(WRITE "${package_dir}/Cargo.toml" "${manifest}")
+    file(WRITE "${package_dir}/lib.rs" "pub fn add(left: usize, right: usize) -> usize {left + right}\n")
+
+    _corrosion_determine_libs_for_crate(${target_triple} ${out_libs} "${CMAKE_BINARY_DIR}/corrosion/required_libs")
+    set("${out_libs}" "${${out_libs}}" PARENT_SCOPE)
 endfunction()
 
 if (NOT "${Rust_TOOLCHAIN}" STREQUAL "$CACHE{Rust_TOOLCHAIN}")
@@ -733,22 +738,6 @@ set(Rust_CARGO_HOST_ARCH "${rust_host_arch}" CACHE INTERNAL "Host architecture")
 set(Rust_CARGO_HOST_VENDOR "${rust_host_vendor}" CACHE INTERNAL "Host vendor")
 set(Rust_CARGO_HOST_OS "${rust_host_os}" CACHE INTERNAL "Host Operating System")
 set(Rust_CARGO_HOST_ENV "${rust_host_env}" CACHE INTERNAL "Host environment")
-
-if(NOT DEFINED CACHE{Rust_CARGO_TARGET_LINK_NATIVE_LIBS})
-    message(STATUS "Determining required link libraries for target ${Rust_CARGO_TARGET_CACHED}")
-    unset(required_native_libs)
-    _corrosion_determine_libs_new("${Rust_CARGO_TARGET_CACHED}" required_native_libs)
-    if(DEFINED required_native_libs)
-        message(STATUS "Required static libs for target ${Rust_CARGO_TARGET_CACHED}: ${required_native_libs}" )
-    endif()
-    # In very recent corrosion versions it is possible to override the rust compiler version
-    # per target, so to be totally correct we would need to determine the libraries for
-    # every installed Rust version, that the user could choose from.
-    # In practice there aren't likely going to be any major differences, so we just do it once
-    # for the target and once for the host target (if cross-compiling).
-    set(Rust_CARGO_TARGET_LINK_NATIVE_LIBS "${required_native_libs}" CACHE INTERNAL
-            "Required native libraries when linking Rust static libraries")
-endif()
 
 if(Rust_CROSSCOMPILING AND NOT DEFINED CACHE{Rust_CARGO_HOST_TARGET_LINK_NATIVE_LIBS})
     message(STATUS "Determining required link libraries for target ${Rust_CARGO_HOST_TARGET_CACHED}")
